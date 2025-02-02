@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Qualité de l'Air</title>
+    <style>
+        /* Réinitialisation des styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Typographie */
+        body {
+            font-family: 'Roboto', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-image: url('https://th.bing.com/th/id/OIG1.dApx6UwbdOGQhYWIhW3a?pid=ImgGn');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        h1, h2 {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+        }
+
+        h1 {
+            font-size: 36px;
+            text-align: center;
+            margin: 30px 0;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        h2 {
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        p {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        /* Layout */
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .air-quality-display, .air-quality-description {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .air-quality-display {
+            width: 60%;
+        }
+
+        .air-quality-description {
+            width: 35%;
+            position: relative;
+            padding-bottom: 200px; /* Augmenter la hauteur de la zone blanche */
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+       .air-quality-description::after {
+    content: "";
+    display: block;
+    width: 100%;
+    height: 200px;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+}
+
+.bonne::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%234caf50'/%3E%3C/svg%3E");
+}
+
+.moderee::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23ffeb3b'/%3E%3C/svg%3E");
+}
+
+.insalubre::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23ff9800'/%3E%3C/svg%3E");
+}
+
+.mauvaise::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23f44336'/%3E%3C/svg%3E");
+}
+
+.tres-mauvaise::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%238b0000'/%3E%3C/svg%3E");
+}
+        /* En-tête */
+        header {
+            background: linear-gradient(to right, #0f3057, #1a936f);
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: "";
+            position: absolute;
+            top: -30%;
+            left: -30%;
+            width: 160%;
+            height: 160%;
+            background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 70%);
+            animation: waves 10s linear infinite;
+        }
+
+        @keyframes waves {
+            0% {
+                transform: translate(-50%, -50%) rotate(0deg);
+            }
+            100% {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Qualité de l'Air</h1>
+    </header>
+    <div class="container">
+        <div class="air-quality-display">
+            {% if air_quality %}
+            <p>Dernière mise à jour : <span id="last-update">{{ air_quality.timestamp|date:"d/m/Y H:i:s" }}</span></p>
+            <p>Niveau de CO2 : <span id="co2-level">{{ air_quality.ppm }}</span> ppm</p>
+            <p>Qualité de l'air : <span id="air-quality">{{ air_quality.qualite }}</span></p>
+            {% else %}
+            <p>Aucune donnée de qualité de l'air disponible.</p>
+            {% endif %}
+        </div>
+        <div class="air-quality-description">
+            <h2>Description</h2>
+            <p>Cette fonctionnalité vous permet de surveiller la qualité de l'air en temps réel. Le niveau de CO2 est mesuré et la qualité de l'air est classée en fonction de différents seuils.</p>
+            <p>Une bonne qualité de l'air est essentielle pour préserver votre santé et votre bien-être. Restez informé et prenez les mesures nécessaires pour maintenir un environnement sain.</p>
+        </div>
+    </div>
+
+    {% load static %}
+    <script>
+        function updateData() {
+            fetch("{% url 'get_data' %}")
+                .then(response => response.json())
+                .then(data => {
+                    const co2LevelElement = document.getElementById('co2-level');
+                    co2LevelElement.textContent = data.air_quality.ppm;
+
+                    const airQualityElement = document.getElementById('air-quality');
+                    airQualityElement.textContent = data.air_quality.qualite;
+                })
+                .catch(error => console.error('Erreur lors de la récupération des données :', error));
+        }
+
+        function updateTime() {
+            const lastUpdateElement = document.getElementById('last-update');
+            lastUpdateElement.textContent = new Date().toLocaleString();
+        }
+
+        setInterval(updateData, 2000); // Mettre à jour les données toutes les 2 secondes
+        setInterval(updateTime, 1000); // Mettre à jour l'heure toutes les secondes
+    </script>
+</body>
+</html>

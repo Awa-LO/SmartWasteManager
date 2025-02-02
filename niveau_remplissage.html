@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Niveau de Remplissage</title>
+    <style>
+        /* Réinitialisation des styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Typographie */
+        body {
+            font-family: 'Roboto', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-image: url('https://th.bing.com/th/id/OIG2.QErGgDX.tt17P.6lYjBg?pid=ImgGn');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        h1, h2 {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+        }
+
+        h1 {
+            font-size: 36px;
+            text-align: center;
+            margin: 30px 0;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        h2 {
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        p {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        /* Layout */
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .fill-level-display, .fill-level-description {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .fill-level-display {
+            width: 60%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .fill-level-description {
+            width: 35%;
+        }
+
+        .fill-level-bar {
+            width: 150px;
+            height: 400px;
+            border: 2px solid #0f3057;
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+
+        .fill-level-indicator {
+            width: 100%;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            transition: height 0.3s ease;
+            transform: translateY(100%);
+        }
+
+        .fill-level-indicator.low {
+            height: calc(50% - 2px);
+            background-color: #4caf50; /* Vert pour moins de 50% */
+            transform: translateY(50%);
+        }
+
+        .fill-level-indicator.medium {
+            height: calc(75% - 2px);
+            background-color: #ffc107; /* Jaune pour 50% et plus */
+            transform: translateY(25%);
+        }
+
+        .fill-level-indicator.high {
+            height: calc(100% - 2px);
+            background-color: #f44336; /* Rouge pour 90% et plus */
+            transform: translateY(0);
+        }
+
+        .fill-level-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .success {
+            color: #4caf50;
+            font-weight: bold;
+        }
+
+        .error {
+            color: #f44336;
+            font-weight: bold;
+        }
+
+        /* Légende */
+        .legend {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 0 10px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 5px;
+        }
+
+        .legend-color.low {
+            background-color: #4caf50;
+        }
+
+        .legend-color.medium {
+            background-color: #ffc107;
+        }
+
+        .legend-color.high {
+            background-color: #f44336;
+        }
+
+        /* Bouton Ouvrir */
+        .open-btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #0f3057;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-top: 20px;
+        }
+
+        .open-btn:hover {
+            background-color: #1a936f;
+        }
+
+        /* En-tête */
+        header {
+            background: linear-gradient(to right, #0f3057, #1a936f);
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: "";
+            position: absolute;
+            top: -30%;
+            left: -30%;
+            width: 160%;
+            height: 160%;
+            background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 70%);
+            animation: waves 10s linear infinite;
+        }
+
+        @keyframes waves {
+            0% {
+                transform: translate(-50%, -50%) rotate(0deg);
+            }
+            100% {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Niveau de Remplissage</h1>
+    </header>
+    <div class="container">
+        <div class="fill-level-display">
+            {% if success_message %}
+            <p class="success">{{ success_message }}</p>
+            {% elif error_message %}
+            <p class="error">{{ error_message }}</p>
+            {% endif %}
+            {% if fill_level %}
+            <p>Dernière mise à jour : <span id="last-update">{{ fill_level.timestamp|date:"d/m/Y H:i:s" }}</span></p>
+            <div class="fill-level-bar">
+                <div class="fill-level-indicator {{ fill_level_class }}" style="height: {{ fill_level.fill_level }}%;"></div>
+            </div>
+            <p class="fill-level-value">Niveau de remplissage : {{ fill_level.fill_level }}%</p>
+            <button class="open-btn" onclick="openBin()">Ouvrir</button>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color low"></div>
+                    <span>Niveau faible</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color medium"></div>
+                    <span>Niveau moyen</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color high"></div>
+                    <span>Niveau élevé</span>
+                </div>
+            </div>
+            {%<p>Aucune donnée de niveau de remplissage disponible.</p>
+           {% endif %}
+       </div>
+       <div class="fill-level-description">
+           <h2>Description</h2>
+           <p>Cette fonctionnalité vous permet de surveiller le niveau de remplissage de la poubelle en temps réel. La jauge verticale vous indique le pourcentage de remplissage actuel.</p>
+           <p>Un suivi régulier du niveau de remplissage vous aidera à optimiser la gestion des déchets et à éviter les débordements.</p>
+       </div>
+   </div>
+
+   {% load static %}
+   <script>
+       function updateData() {
+           fetch("{% url 'get_data' %}").then(response => response.json())
+              .then(data => {
+                  const fillLevelValue = document.querySelector('.fill-level-value');
+                  fillLevelValue.textContent = `Niveau de remplissage : ${data.fill_level.fill_level}%`;
+
+                  const fillLevelIndicator = document.querySelector('.fill-level-indicator');
+                  fillLevelIndicator.style.height = `${data.fill_level.fill_level}%`;
+
+                  if (data.fill_level.fill_level < 50) {
+                      fillLevelIndicator.className = "fill-level-indicator low";
+                  } else if (data.fill_level.fill_level >= 50 && data.fill_level.fill_level < 90) {
+                      fillLevelIndicator.className = "fill-level-indicator medium";
+                  } else {
+                      fillLevelIndicator.className = "fill-level-indicator high";
+                  }
+              })
+              .catch(error => console.error('Erreur lors de la récupération des données :', error));
+      }
+
+      function updateTime() {
+          const lastUpdateElement = document.getElementById('last-update');
+          lastUpdateElement.textContent = new Date().toLocaleString();
+      }
+
+      function openBin() {
+          // Logique pour ouvrir la poubelle
+          // ...
+
+          // Si le niveau de remplissage est à 100%, redémarrer l'ultrason
+          if (document.querySelector('.fill-level-indicator').style.height === '100%') {
+              // Logique pour redémarrer l'ultrason
+              // ...
+          }
+      }
+
+      setInterval(updateData, 1000);
+      setInterval(updateTime, 1000);
+  </script>
+</body>
+</html>

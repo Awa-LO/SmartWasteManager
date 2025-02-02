@@ -1,0 +1,341 @@
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+#include <WiFiClientSecure.h>
+#include <LiquidCrystal_I2C.h>
+#include <Servo.h>
+#include <Callmebot_ESP8266.h>
+#include <UniversalTelegramBot.h>
+
+// WiFi credentials
+const char* ssid = "Infinix SMART 5";
+const char* password = "loawa2001";
+
+// Server details
+const char* serverHost = "192.168.43.43";
+const int serverPort = 80;
+
+// Callmebot details
+String phoneNumber1 = "+221769231196";  // Replace with your phone number
+String phoneNumber2 = "+221777693114";  // Replace with the second phone number
+String apiKey1 = "1740799";             // Replace with your Callmebot API key
+String apiKey2 = "6520032";             // Replace with the second Callmebot API key
+
+// Telegram bot details
+const char* botToken1 = "6973047118:AAEW_C0TnaHuVWqv41YV3nXIOLURE-H9GkU";
+const char* chat_id1 = "7155874682";
+const char* botToken2 = "6986098356:AAEUjxQi7jTUceJeiUNA3iGXmhaWr-IhP4E"; // Nouveau token Telegram
+const char* chat_id2 = "5347916295"; // Nouveau chat ID Telegram
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+const int trigPin = D6;
+const int echoPin = D7;
+const int MQ135_PIN = A0;
+const int servoPin = D5;
+const int fillTrigPin = D3;
+const int fillEchoPin = D8;
+const int buzzerPin = D4; // Broche du buzzer
+Servo monServomoteur;
+const float RL_VALUE = 20.0;
+const float RZERO = 76.63;
+const float PARA = 116.6020682;
+const float PARB = 2.769034857;
+
+long duration;
+float distance;
+float maxDistance = 33.7; // Maximum distance measured by ultrasonic sensor (in cm)
+float fillDistance;
+float fillLevel;
+String binState = "Fermee";
+String Q; 
+
+WiFiClient client;
+WiFiClientSecure telegramClient1;
+WiFiClientSecure telegramClient2; // Nouveau client WiFiClientSecure pour le deuxième bot Telegram
+UniversalTelegramBot bot1(botToken1, telegramClient1);
+UniversalTelegramBot bot2(botToken2, telegramClient2); // Nouvelle instance de UniversalTelegramBot pour le deuxième bot Telegram
+
+unsigned long previousMillis = 0;
+const long interval = 120000; // 2 minutes interval
+
+// Function declarations
+float calculateCO2Concentration(float sensorValue);
+float calculateGasConcentration(float sensorValue, String gasType);
+void sendBinState(String state);
+void sendDataToServer(String path, String data);
+void sendWhatsAppMessage(float ppm, float nh3, float ch4, float h2s, String Q, float fillLevel, String binState);
+void sendTelegramMessage(float ppm, float nh3, float ch4, float h2s, String Q, float fillLevel, String binState);
+void updateLCD(float distance, float ppm, String Q, float fillLevel);
+void activateBuzzer();
+
+void setup() {
+  Serial.begin(9600);
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Initializing...");
+
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(fillTrigPin, OUTPUT);
+  pinMode(fillEchoPin, INPUT);
+  pinMode(buzzerPin, OUTPUT); // Configurer la broche du buzzer en sortie
+  monServomoteur.attach(servoPin);
+
+  // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  Callmebot.begin();
+  Serial.println("Callmebot initialized");
+
+  // Disable root certificate verification for Telegram
+  telegramClient1.setInsecure();
+  telegramClient2.setInsecure(); // Désactiver la vérification des certificats pour le deuxième bot Telegram
+
+  lcd.clear();
+}
+
+void loop() {
+  // Ultrasonic Sensor for Distance
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(20); // Extra delay
+  digitalWrite(trigPin, LOW);
+  duration = pulseIn(echoPin, HIGH, 30000); // Timeout of 30 ms
+  distance = duration * 0.034 / 2.0;
+
+  // Ignore distances less than 2 cm
+  if (distance < 2.0) {
+    distance = maxDistance; // Set a default maximum distance
+  }
+
+  // MQ135 Gas Sensor for LCD
+  int sensorValue = analogRead(MQ135_PIN);
+  float ppm = calculateCO2Concentration(sensorValue); // CO2 concentration in ppm
+  float nh3 = calculateGasConcentration(sensorValue, "NH3"); // Ammonia concentration in ppm
+  float ch4 = calculateGasConcentration(sensorValue, "CH4"); // Methane concentration in ppm
+  float h2s = calculateGasConcentration(sensorValue, "H2S"); // Hydrogen sulfide concentration in ppm
+
+  // Gas detection
+  bool gasDetected = (ppm > 50 || nh3 > 10 || ch4 > 14 || h2s > 20);
+
+  // Servo motor control based on distance and gas detection
+  if (distance < 30 && distance >= 2.0) {
+    // Open the bin if a person is detected
+    monServomoteur.write(180);
+    binState = "Ouverte";
+  } else if (gasDetected) {
+    // Open the bin if gas is detected
+    monServomoteur.write(180);
+    binState = "Ouverte";
+
+    // Display "Gas detected" on the LCD for 5 seconds
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Gaz detecte");
+    delay(5000);
+    lcd.clear(); // Clear the LCD after 5 seconds
+
+    // Activate the buzzer
+    activateBuzzer();
+
+    // Send WhatsApp and Telegram messages if gas is detected
+    String gasMessage = "Attention! Du gaz a ete detecte.\n";
+    gasMessage += "CO2: " + String(ppm) + " ppm\n";
+    gasMessage += "NH3: " + String(nh3) + " ppm\n";
+    gasMessage += "CH4: " + String(ch4) + " ppm\n";
+    gasMessage += "H2S: " + String(h2s) + " ppm";
+    sendWhatsAppMessage(ppm, nh3, ch4, h2s, "Tres mauvaise", fillLevel, binState);
+    sendTelegramMessage(ppm, nh3, ch4, h2s, "Tres mauvaise", fillLevel, binState);
+  } else {
+    // Close the bin if no conditions are met
+    monServomoteur.write(0);
+    binState = "Fermee";
+  }
+
+  // Air quality based on CO2String Q;
+  if (ppm < 50) {
+     Q = "Bonne";
+  } else if (ppm < 120) {
+    Q = "Moderee";
+  } else if (ppm < 150) {
+    Q = "Insalubre";
+  } else if (ppm < 200) {
+    Q = "Mauvaise";
+  } else {
+    Q = "Tres mauvaise";
+  }
+
+  // Update the LCD with current readings
+  updateLCD(distance, ppm, Q, fillLevel);
+
+  // Display other gas concentrations on the serial monitor
+  Serial.println("NH3: " + String(nh3) + " ppm");
+  Serial.println("CH4: " + String(ch4) + " ppm");
+  Serial.println("H2S: " + String(h2s) + " ppm");
+
+  // Send air quality data to the Django server
+  sendDataToServer("/qualite_air/", "ppm=" + String(ppm) + "&qualite=" + Q);
+
+  // Ultrasonic Sensor for Fill Level
+  digitalWrite(fillTrigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(fillTrigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(fillTrigPin, LOW);
+  duration = pulseIn(fillEchoPin, HIGH);
+  fillDistance = duration * 0.034 / 2.0;
+
+  // Calculate fill level based on distance
+  fillLevel = 100 - (fillDistance / maxDistance) * 100;
+  fillLevel = constrain(fillLevel, 0, 100);
+
+  // If the fill level is greater than 90%
+  if (fillLevel > 90) {
+    lcd.clear(); // Clear the LCD
+    lcd.setCursor(0, 0);
+    lcd.print("Poubelle pleine");
+    delay(5000); // Display for 5 seconds
+    lcd.clear(); // Clear the LCD after 5 seconds
+
+    // Activate the buzzer
+    activateBuzzer();
+
+    // Send WhatsApp and Telegram messages if bin is full
+    String fillMessage = "Attention! La poubelle est pleine.\nNiveau de remplissage: " + String(fillLevel) + "%";
+    sendWhatsAppMessage(ppm, nh3, ch4, h2s, Q, fillLevel, binState);
+    sendTelegramMessage(ppm, nh3, ch4, h2s, Q, fillLevel, binState);
+  }
+
+  // Send fill level data to the Django server
+  sendDataToServer("/niveau_remplissage/", "fill_level=" + String(fillLevel));
+
+  // Send gas detection data to the Django server
+  int gasDetectedInt = gasDetected ? 1 : 0;
+  sendDataToServer("/detection_gaz/", "gas_detected=" + String(gasDetectedInt) + "&ppm=" + String(ppm) + "&nh3=" + String(nh3) + "&ch4=" + String(ch4) + "&h2s=" + String(h2s));
+
+  // Check if 2 minutes have passed to send WhatsApp and Telegram messages
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+    sendWhatsAppMessage(ppm, nh3, ch4, h2s, Q, fillLevel, binState);
+    sendTelegramMessage(ppm, nh3, ch4, h2s, Q, fillLevel, binState);
+  }
+
+  delay(2000);
+}
+
+void updateLCD(float distance, float ppm, String Q, float fillLevel) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Distance: ");
+  lcd.print(distance, 2);
+  lcd.print(" cm");
+
+  lcd.setCursor(0, 1);
+  lcd.print("CO2: ");
+  lcd.print(int(ppm));
+  lcd.print(" Q:");
+  lcd.print(Q);
+
+  lcd.setCursor(0, 2);
+  lcd.print("Remplissage: ");
+  lcd.print(int(fillLevel));
+  lcd.print("%");
+}
+
+float calculateCO2Concentration(float sensorValue) {
+  float voltage = sensorValue * (5.0 / 1024.0);
+  float rs = ((5.0 - voltage) / voltage) * 10000.0;
+  float ppm = 219.0 * pow(rs / 10000.0, -1.23);
+  return ppm / 10;
+}
+
+float calculateGasConcentration(float sensorValue, String gasType) {
+  // Real formulas to calculate gas concentrations from sensor value
+  if (gasType == "NH3") {
+    float nh3Concentration = pow(10, ((sensorValue - PARA) / PARB) / -1.23) / RZERO;
+    return nh3Concentration;
+  } else if (gasType == "CH4") {
+    float ch4Concentration = pow(10, ((sensorValue - PARA) / PARB) / -1.23) / RZERO;
+    return ch4Concentration;
+  } else if (gasType == "H2S") {
+    float h2sConcentration = pow(10, ((sensorValue - PARA) / PARB) / -1.23) / RZERO;
+    return h2sConcentration;
+  }
+  return 0.0;
+}
+
+void sendBinState(String state) {
+  WiFiClient client;
+  if (client.connect(serverHost, serverPort)) {
+    client.println("POST /ouv_et_ferm/ HTTP/1.1");
+    client.println("Host: " + String(serverHost) + ":" + String(serverPort));
+    client.println("Content-Type: application/x-www-form-urlencoded");
+    client.print("Content-Length: ");
+    client.println(6 + state.length());
+    client.println();
+    client.println("state=" + state);
+    Serial.println("Bin state sent to server: " + state);
+  } else {
+    Serial.println("Failed to connect to server");
+  }
+  client.stop();
+}
+
+void sendDataToServer(String path, String data) {
+  if (client.connect(serverHost, serverPort)) {
+    client.println("POST " + path + " HTTP/1.1");
+    client.println("Host: " + String(serverHost) + ":" + String(serverPort));
+    client.println("Content-Type: application/x-www-form-urlencoded");
+    client.print("Content-Length: ");
+    client.println(data.length());
+    client.println();
+    client.println(data);
+    Serial.println("Data sent to server: " + data);
+  } else {
+    Serial.println("Failed to connect to server");
+  }
+  client.stop();
+}
+
+void sendWhatsAppMessage(float ppm, float nh3, float ch4, float h2s, String Q, float fillLevel, String binState) {
+  String message = "Qualite de l'air: " + Q + "\n";
+  message += "CO2: " + String(ppm) + " ppm\n";
+  message += "NH3: " + String(nh3) + " ppm\n";
+  message += "CH4: " + String(ch4) + " ppm\n";
+  message += "H2S: " + String(h2s) + " ppm\n";
+  message += "Niveau de remplissage: " + String(fillLevel) + "%\n";
+  message += "Etat de la poubelle: " + binState;
+
+  Callmebot.whatsappMessage(phoneNumber1, apiKey1, message);
+  Callmebot.whatsappMessage(phoneNumber2, apiKey2, message);
+  Serial.println("WhatsApp message sent: " + message);
+}
+
+void sendTelegramMessage(float ppm, float nh3, float ch4, float h2s, String Q, float fillLevel, String binState) {
+  String message = "Qualite de l'air: " + Q + "\n";
+  message += "CO2: " + String(ppm) + " ppm\n";
+  message += "NH3: " + String(nh3) + " ppm\n";
+  message += "CH4: " + String(ch4) + " ppm\n";
+  message += "H2S: " + String(h2s) + " ppm\n";
+  message += "Niveau de remplissage: " + String(fillLevel) + "%\n";
+  message += "Etat de la poubelle: " + binState;
+
+  bot1.sendMessage(chat_id1, message, "");
+  bot2.sendMessage(chat_id2, message, "");
+  Serial.println("Telegram message sent: " + message);
+}
+
+void activateBuzzer() {
+  digitalWrite(buzzerPin, HIGH); // Activer le buzzer
+  delay(7000); // Laisser sonner pendant 2 secondes
+  digitalWrite(buzzerPin, LOW); // Désactiver le buzzer
+}

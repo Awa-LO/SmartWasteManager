@@ -1,0 +1,113 @@
+<!DOCTYPE html> <html lang="fr">
+<head> <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accueil - Système de Gestion Intelligente des Déchets</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&family=Playfair+Display:ital,wght@1,700&display=swap" rel="stylesheet">
+    <style> /* Reset CSS */ * { margin: 0; padding: 0; box-sizing: border-box; }
+
+
+    /* Typographie */
+    body {
+        font-family: 'Open Sans', sans-serif;
+        line-height: 1.6;
+        color: #333;
+    }
+
+    h1, h2 {
+        font-weight: 600;
+    }
+
+    /* Layout */
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+
+    header {
+        background: linear-gradient(to right, #0f3057, #1a936f);
+        color: #fff;
+        padding: 20px 0;
+        text-align: center;
+        box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+        position: relative;
+        overflow: hidden;
+    }
+
+     header h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            position: relative;
+            z-index: 1;
+        }
+
+    header::before {
+        content: "";
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 70%);
+        animation: waves 10s linear infinite;
+    }
+
+    @keyframes waves {
+        0% {
+            transform: translate(-50%, -50%) rotate(0deg);
+        }
+        100% {
+            transform: translate(-50%, -50%) rotate(360deg);
+        }
+    }
+
+    main {
+        padding: 40px 0;
+        flex: 1;
+        text-align: center;
+    }
+
+    blockquote {
+        font-family: 'Playfair Display', serif;
+        font-style: italic;
+        font-size: 32px;
+        color: #fff;
+        margin-bottom: 40px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+
+        padding: 30px;
+        border-radius: 10px;
+    }
+
+    a {
+        background-color: #1a936f;
+        color: #fff;
+        border: none;
+        padding: 15px 30px;
+        border-radius: 30px;
+        cursor: pointer;
+        font-size: 20px;
+        transition: background-color 0.3s ease;
+        text-decoration: none;
+        box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    a:hover {
+        background-color: #156b4a;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Fond d'écran */
+    body {
+        background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('https://th.bing.com/th/id/OIG2.UerevwOnBnNAUG_83fP_?pid=ImgGn') no-repeat center center fixed;
+        background-size: cover;
+    }
+</style>
+</head> <body> <header> <div class="container"> <h1>Bienvenue sur notre Système de Gestion Intelligente des Déchets</h1> </div> </header> <div class="container"> <main> <blockquote>"La gestion des déchets n'est pas seulement un défi environnemental, c'est une opportunité de repenser notre rapport avec la nature. Chaque déchet est une ressource précieuse qui mérite d'être valorisée et réintégrée dans un cycle vertueux de production et de consommation durable."</blockquote> <a href="{% url 'dashboard' %}">Bienvenue</a> </main> </div> </body> </html>

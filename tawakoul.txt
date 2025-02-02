@@ -1,0 +1,309 @@
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+#include <LiquidCrystal_I2C.h>
+#include <Servo.h>
+#include <Callmebot_ESP8266.h>
+
+// Remplacez par vos informations de connexion WiFi
+const char* ssid = "Infinix SMART 5";
+const char* password = "loawa2001";
+
+// Adresse IP et port du serveur Django
+const char* serverHost = "192.168.43.43";
+const int serverPort = 80;
+
+// Détails Callmebot pour WhatsApp
+String phoneNumber = "+221778371481";
+String apiKey = "363062";
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+const int trigPin = D6;
+const int echoPin = D7;
+const int MQ135_PIN = A0;
+const int servoPin = D5;
+const int fillTrigPin = D3;
+const int fillEchoPin = D8;
+Servo monServomoteur;
+float RL_VALUE = 20.0; // Résistance de charge ajustable
+const float RZERO = 76.63; // Résistance du capteur à l'air frais (Rzero)
+
+long duration;
+float distance;
+float maxDistance = 33.7; // Distance maximale mesurée par l'ultrason (en cm)
+float fillDistance;
+float fillLevel;
+
+WiFiClient client;
+
+// Nouvelles variables globales
+unsigned long lastUltrasonicMeasurement = 0;
+unsigned long lastServoMovement = 0;
+bool isConnected = false;
+unsigned long lastConnectionCheck = 0;
+
+void setup() {
+  Serial.begin(9600);
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Distance: ");
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(fillTrigPin, OUTPUT);
+  pinMode(fillEchoPin, INPUT);
+  monServomoteur.attach(servoPin);
+
+  // Connexion au WiFi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+  isConnected = true;
+
+  // Initialisation de Callmebot
+  Callmebot.begin();
+
+  // Calibrage initial du capteur MQ135
+  calibrateSensor();
+}
+
+void loop() {
+  unsigned long currentTime = millis();
+
+  // Vérifier la connexion WiFi toutes les 60 secondes
+  if (currentTime - lastConnectionCheck >= 30000) {
+    lastConnectionCheck = currentTime;
+    if (WiFi.status() != WL_CONNECTED && isConnected) {
+      isConnected = false;
+      sendWhatsAppMessage("Connexion interrompue");
+    } else if (WiFi.status() == WL_CONNECTED && !isConnected) {
+      isConnected = true;
+      sendWhatsAppMessage("Connexion rétablie");
+    }
+  }
+
+  // Ultrasonic Sensor for Distance
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(20); // Délai supplémentaire
+  digitalWrite(trigPin, LOW);
+  duration = pulseIn(echoPin, HIGH, 30000); // Timeout de 30 ms
+  distance = duration * 0.034 / 2.0;
+
+  // Ignorer les distances inférieures à 2 cm
+  if (distance < 2.0) {
+    distance = maxDistance; // Définir une distance maximale par défaut
+  }
+
+  if (distance >= 2.0 && distance < maxDistance) {
+    lastUltrasonicMeasurement = currentTime;
+  }
+
+  // Vérifier si l'ultrason n'a pas mesuré pendant 5 minutes
+  if (currentTime - lastUltrasonicMeasurement >= 30000) {
+    sendWhatsAppMessage("Attention: Aucune mesure ultrasonique depuis 30 secondes");
+    lastUltrasonicMeasurement = currentTime;
+  }
+
+  // Afficher la distance
+  lcd.setCursor(10, 0);
+  lcd.print(distance, 2);
+  lcd.print(" cm");
+
+  // MQ135 Gas Sensor
+  int sensorValue = analogRead(MQ135_PIN);
+  Serial.println("Valeur brute du capteur : " + String(sensorValue));
+  float ppm = calculateCO2Concentration(sensorValue); // Concentration de CO2 en ppm
+  float nh3 = calculateNH3Concentration(sensorValue); // Concentration d'ammoniac en ppm
+  float ch4 = calculateCH4Concentration(sensorValue); // Concentration de méthane en ppm
+  float h2s = calculateH2SConcentration(sensorValue); // Concentration d'hydrogène sulfuré en ppm
+
+  Serial.println("CO2: " + String(ppm) + " ppm");
+  Serial.println("NH3: " + String(nh3) + " ppm");
+  Serial.println("CH4: " + String(ch4) + " ppm");
+  Serial.println("H2S: " + String(h2s) + " ppm");
+
+  // Détection de gazs
+  bool gasDetected = (ppm > 35 || nh3 > 0.05 || ch4 > 0.05 || h2s > 0.005);
+
+  // Contrôle du servomoteur en fonction de la distance et de la détection de gaz
+  if (distance < 30 && distance >= 2.0) {
+    // Ouvrir la poubelle si une personne est détectée
+    monServomoteur.write(180);
+    sendBinState("Ouverte");
+    lastServoMovement = currentTime;
+  } else if (gasDetected) {
+    // Ouvrir la poubelle si du gaz est détecté
+    monServomoteur.write(180);
+    sendBinState("Ouverte");
+    lastServoMovement = currentTime;
+
+    // Afficher "Gaz détecté" sur l'écran LCD pendant 5 secondes
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Gaz detecte");
+    delay(5000);
+    lcd.clear(); // Effacer l'écran LCD après 5 secondes
+
+    // Envoyer un message WhatsApp
+    sendWhatsAppMessage("Attention! Gaz detecte dans la poubelle.");
+  } else {
+    // Fermer la poubelle si aucune condition n'est remplie
+    monServomoteur.write(0);
+    sendBinState("Fermée");
+    lastServoMovement = currentTime;
+  }
+
+  // Vérifier si le servomoteur n'a pas bougé pendant 5 minutes
+  if (currentTime - lastServoMovement >= 30000) {
+    sendWhatsAppMessage("Attention: Le servomoteur n'a pas bougé depuis 30 secondes");
+    lastServoMovement = currentTime;
+  }
+
+  // Qualité de l'air en fonction du CO2
+  String Q;
+  if (ppm < 35) {
+    Q = "Bonne";
+  } else if (ppm < 40) {
+    Q = "Modérée";
+  } else if (ppm < 55) {
+    Q = "Mauvaise pour la santé";
+  } else {
+    Q = "Très mauvaise";
+  }
+
+  lcd.setCursor(0, 1);
+  lcd.print("CO2: ");
+  lcd.print(int(ppm));
+  lcd.print(" Q:");
+  lcd.print(Q);
+
+  // Afficher les autres concentrations de gaz sur le moniteur série
+  Serial.println("NH3: " + String(nh3) + " ppm");
+  Serial.println("CH4: " + String(ch4) + " ppm");
+  Serial.println("H2S: " + String(h2s) + " ppm");
+
+  // Envoyer les données de qualité de l'air au serveur Django
+  sendDataToServer("/qualite_air/", "ppm=" + String(ppm) + "&qualite=" + Q);
+
+  // Ultrasonic Sensor for Fill Level
+  digitalWrite(fillTrigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(fillTrigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(fillTrigPin, LOW);
+  duration = pulseIn(fillEchoPin, HIGH);
+  fillDistance = duration * 0.034 / 2.0;
+
+  // Calculate fill level based on distance
+  fillLevel = 100 - (fillDistance / maxDistance) * 100;
+  fillLevel = constrain(fillLevel, 0, 100);
+
+  // Afficher le niveau de remplissage sur l'écran LCD
+  lcd.setCursor(0, 2);
+  lcd.print("Remplissage: ");
+  lcd.print(int(fillLevel));
+  lcd.print("%");
+
+  // Si le niveau de remplissage est supérieur à 90%
+  if (fillLevel > 90) {
+    lcd.clear(); // Effacer l'écran LCD
+    lcd.setCursor(0, 0);
+    lcd.print("Poubelle pleine");
+    delay(5000); // Afficher pendant 5 secondes
+    lcd.clear(); // Effacer l'écran LCD après 5 secondes
+
+    // Envoyer un message WhatsApp
+    sendWhatsAppMessage("Poubelle pleine. Veuillez la vider.");
+  }
+
+  // Envoyer les données de niveau de remplissage au serveur Django
+  sendDataToServer("/niveau_remplissage/", "fill_level=" + String(fillLevel));
+
+  // Envoyer les données de détection de gaz au serveur Django
+  int gasDetectedInt = gasDetected ? 1 : 0;
+  sendDataToServer("/detection_gaz/", "gas_detected=" + String(gasDetectedInt) + "&ppm=" + String(ppm) + "&nh3=" + String(nh3) + "&ch4=" + String(ch4) + "&h2s=" + String(h2s));
+  delay(2000);
+}
+
+float calculateCO2Concentration(float sensorValue) {
+  float voltage = sensorValue * (5.0 / 1024.0);
+  float rs = ((5.0 - voltage) / voltage) * RL_VALUE;
+  float ppm = 219.0 * pow(rs / RL_VALUE, -1.23);
+  return ppm / 10;
+}
+
+float calculateNH3Concentration(float sensorValue) {
+  float voltage = sensorValue * (5.0 / 1024.0);
+  float rs = ((5.0 - voltage) / voltage) * RL_VALUE;
+  return pow(10, ((log10(rs / RZERO) - (-0.59)) / -1.26)) / 1000.0; // Concentration d'ammoniac en ppm
+}
+
+float calculateCH4Concentration(float sensorValue) {
+  float voltage = sensorValue * (5.0 / 1024.0);
+  float rs = ((5.0 - voltage) / voltage) * RL_VALUE;
+  return pow(10, ((log10(rs / RZERO) - (-0.38)) / -1.76)) / 1000.0; // Concentration de méthane en ppm
+}
+
+float calculateH2SConcentration(float sensorValue) {
+  float voltage = sensorValue * (5.0 / 1024.0);
+  float rs = ((5.0 - voltage) / voltage) * RL_VALUE;
+  return pow(10, ((log10(rs / RZERO) - (-0.42)) / -1.20)) / 10000.0; // Concentration d'hydrogène sulfuré en ppm
+}
+
+void sendBinState(String state) {
+  WiFiClient client;
+  if (client.connect(serverHost, serverPort)) {
+    client.println("POST /ouv_et_ferm/ HTTP/1.1");
+    client.println("Host: " + String(serverHost) + ":" + String(serverPort));
+    client.println("Content-Type: application/x-www-form-urlencoded");
+    client.print("Content-Length: ");
+    client.println(6 + state.length());
+    client.println();
+    client.println("state=" + state);
+    Serial.println("Bin state sent to server: " + state);
+  } else {
+    Serial.println("Failed to connect to server");
+  }
+  client.stop();
+}
+
+void sendDataToServer(String path, String data) {
+  if (client.connect(serverHost, serverPort)) {
+    client.println("POST " + path + " HTTP/1.1");
+    client.println("Host: " + String(serverHost) + ":" + String(serverPort));
+    client.println("Content-Type: application/x-www-form-urlencoded");
+    client.print("Content-Length: ");
+    client.println(data.length());
+    client.println();
+    client.println(data);
+    Serial.println("Data sent to server: " + data);
+  } else {
+    Serial.println("Failed to connect to server");
+  }
+  client.stop();
+}
+
+void calibrateSensor() {
+  Serial.println("Calibration du capteur MQ135...");
+  int sensorValue = analogRead(MQ135_PIN);
+  float voltage = sensorValue * (5.0 / 1024.0);
+  float rzero = RL_VALUE * (5.0 - voltage) / voltage;
+
+  Serial.println("Valeur brute du capteur pendant la calibration : " + String(sensorValue));
+  Serial.println("Tension du capteur pendant la calibration : " + String(voltage) + " V");
+  Serial.println("Résistance du capteur à l'air frais (Rzero) : " + String(rzero) + " Ohm");
+
+  // Ajustez la valeur de RL_VALUE en fonction de Rzero
+  RL_VALUE = rzero / RZERO * RL_VALUE;
+  Serial.println("Nouvelle valeur de RL_VALUE : " + String(RL_VALUE));
+}
+
+void sendWhatsAppMessage(String message) {
+  Callmebot.whatsappMessage(phoneNumber, apiKey, message);
+  Serial.println("WhatsApp message sent: " + message);
+  Serial.println(Callmebot.debug());
+}

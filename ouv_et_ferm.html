@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+   <meta charset="UTF-8">
+   <title>Ouverture et Fermeture de la Poubelle</title>
+   <link rel="preconnect" href="https://fonts.googleapis.com">
+   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+   <style>
+       /* Réinitialisation des styles */
+       * {
+           margin: 0;
+           padding: 0;
+           box-sizing: border-box;
+       }
+
+       /* Typographie */
+       body {
+           font-family: 'Roboto', sans-serif;
+           line-height: 1.6;
+           color: #333;
+           background-image: url('https://tse4.mm.bing.net/th/id/OIG1.0PmxDBkEVvT1MxbkprEP?pid=ImgGn');
+           background-size: cover;
+           background-position: center;
+           background-repeat: no-repeat;
+       }
+
+       h1, h2, h3 {
+           font-family: 'Playfair Display', serif;
+           font-weight: 700;
+       }
+
+       h1 {
+           font-size: 36px;
+           text-align: center;
+           margin: 30px 0;
+           color: #fff;
+           text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+       }
+
+       h2 {
+           font-size: 28px;
+           margin-bottom: 20px;
+       }
+
+       h3 {
+           font-size: 22px;
+           margin-bottom: 10px;
+           color: #0f3057;
+       }
+
+       p {
+           text-align: center;
+           margin-bottom: 20px;
+       }
+
+       /* Layout */
+       .container {
+           max-width: 1000px;
+           margin: 0 auto;
+           padding: 40px;
+           display: flex;
+           justify-content: space-between;
+           align-items: flex-start;
+       }
+
+       .bin-state, .illustration, .description {
+           background-color: #fff;
+           padding: 30px;
+           border-radius: 10px;
+           box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+       }
+
+       .bin-state {
+           width: 30%;
+           text-align: center;
+           border: 3px solid #0f3057;
+       }
+
+       .illustration {
+           width: 40%;
+           text-align: center;
+       }
+
+       .illustration img {
+           max-width: 200px;
+           height: auto;
+           border-radius: 10px;
+           box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+       }
+
+       .description {
+           width: 25%;
+           padding: 30px;
+           border: 3px solid #0f3057;
+       }
+
+       /* En-tête */
+       header {
+           background: linear-gradient(to right, #0f3057, #1a936f);
+           color: #fff;
+           padding: 20px;
+           text-align: center;
+           box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+           position: relative;
+           overflow: hidden;
+       }
+
+       header::before {
+           content: "";
+           position: absolute;
+           top: -30%;
+           left: -30%;
+           width: 160%;
+           height: 160%;
+           background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 70%);
+           animation: waves 10s linear infinite;
+       }
+
+       @keyframes waves {
+           0% {
+               transform: translate(-50%, -50%) rotate(0deg);
+           }
+           100% {
+               transform: translate(-50%, -50%) rotate(360deg);
+           }
+       }
+   </style>
+</head>
+<body>
+   <header>
+       <h1>Ouverture et Fermeture de la Poubelle</h1>
+   </header>
+   <div class="container">
+       <div class="bin-state" id="binState">
+           <h3>La poubelle est actuellement <span id="binStateText">{{ bin_state }}</span></h3>
+           <p id="lastUpdate">Dernière mise à jour : <span id="lastUpdateText">{{ last_update }}</span></p>
+           <p id="clock"></p>
+       </div>
+       <div class="illustration">
+           <img src="{{ bin_image }}" alt="Poubelle" width="200" height="356" id="binImage">
+       </div>
+       <div class="description">
+           <h2>Description</h2>
+           <p>Cette fonctionnalité vous permet de surveiller l'état d'ouverture et de fermeture des couvercles de poubelle en temps réel. Grâce à des capteurs intelligents, vous pouvez vérifier si les poubelles sont correctement fermées pour éviter les nuisances et garantir une gestion efficace des déchets.</p>
+       </div>
+   </div>
+
+   <script>
+       function updateData() {
+           fetch("{% url 'get_data' %}")
+               .then(response => response.json())
+               .then(data => {
+                   const binStateText = document.getElementById('binStateText');
+                   const lastUpdateText = document.getElementById('lastUpdateText');
+                   const binImageElement = document.getElementById('binImage');
+
+                   binStateText.textContent = data.bin_state.state;
+                   lastUpdateText.textContent = new Date(data.bin_state.timestamp).toLocaleString();
+
+                   const openBinImage = 'https://media.istockphoto.com/id/507077524/fr/photo/noir-ouvert-de-poubelle.jpg?s=612x612&w=0&k=20&c=vGwUfXH4vXicpMs3lADPVkG0znuTXR0QosL5QTVcZJo=';
+                   const closedBinImage = 'https://th.bing.com/th/id/OIP.iA1hOn_LpHwixMrMRDuXRgHaIy?pid=ImgDet&w=199&h=235&c=7&dpr=1,5';
+
+                   binImageElement.src = data.bin_state.state === 'Ouverte' ? openBinImage : closedBinImage;
+                   binImageElement.alt = `Poubelle ${data.bin_state.state}`;
+               })
+               .catch(error => console.error('Erreur lors de la récupération des données :', error));
+       }
+
+       function updateClock() {
+           const clockElement = document.getElementById('clock');
+           const now = new Date();
+           const hours = String(now.getHours()).padStart(2, '0');
+           const minutes = String(now.getMinutes()).padStart(2, '0');
+           const seconds = String(now.getSeconds()).padStart(2, '0');
+           clockElement.textContent = `${hours}:${minutes}:${seconds}`;
+       }
+
+       updateData(); // Récupérer les données initiales
+       setInterval(updateData, 1000); // Mettre à jour les données toutes les 5 secondes
+       setInterval(updateClock, 1000); // Mettre à jour l'horloge toutes les secondes
+   </script>
+</body>
+</html>

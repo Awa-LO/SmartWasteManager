@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Détection de Gaz</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* Réinitialisation des styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Typographie */
+        body {
+            font-family: 'Roboto', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-image: url('https://tse2.mm.bing.net/th/id/OIG2.ngBrRGiJOvtWJyzXqxGr?pid=ImgGn');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        h1, h2 {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+        }
+
+        h1 {
+            font-size: 36px;
+            text-align: center;
+            margin: 30px 0;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        h2 {
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        p {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        /* Mise en page */
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .gas-detection-display, .gas-detection-description {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .gas-detection-display {
+            width: 60%;
+        }
+
+        .gas-detection-description {
+            width: 35%;
+            position: relative;
+            padding-bottom: 200px;
+        }
+
+        .gas-detection-description::after {
+            content: "";
+            display: block;
+            width: 100%;
+            height: 200px;
+            background-image: url('https://tse2.mm.bing.net/th/id/OIG2.xTkVVwIVTYm5bforeIgd?pid=ImgGn');
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+        }
+
+        .gas-status {
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            text-align: center;
+            font-size: 24px;
+        }
+
+        .gas-not-detected {
+            background-color: #4caf50;
+            color: #fff;
+        }
+
+        .gas-detected {
+            background-color: #f44336;
+            color: #fff;
+        }
+
+        .action-message {
+            margin-top: 10px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .gas-alarm {
+            display: none;
+        }
+
+        /* En-tête */
+        header {
+            background: linear-gradient(to right, #0f3057, #1a936f);
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: "";
+            position: absolute;
+            top: -30%;
+            left: -30%;
+            width: 160%;
+            height: 160%;
+            background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 70%);
+            animation: waves 10s linear infinite;
+        }
+
+        @keyframes waves {
+            0% {
+                transform: translate(-50%, -50%) rotate(0deg);
+            }
+            100% {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Détection de Gaz</h1>
+    </h1>
+    </header>
+    <div class="container">
+        <div class="gas-detection-display">
+            <p>Dernière mise à jour : <span id="last-update"></span></p>
+            <p class="ppm">Niveau de CO2 : {{ air_quality.ppm }} ppm</p>
+            <p class="nh3">Niveau de NH3 : {{ gas_detection.nh3 }} ppm</p>
+            <p class="ch4">Niveau de CH4 : {{ gas_detection.ch4 }} ppm</p>
+            <p class="h2s">Niveau de H2S : {{ gas_detection.h2s }} ppm</p>
+            <div class="gas-status"></div>
+            <p class="action-message"></p>
+            <p class="detected-gases"></p>
+            <audio class="gas-alarm" src="https://www.soundjay.com/button/beep-07.wav" controls></audio>
+        </div>
+        <div class="gas-detection-description">
+            <h2>Description</h2>
+            <p>Cette fonctionnalité vous permet de surveiller la présence de gaz dans l'environnement. Lorsque le niveau de CO2, NH3, CH4 ou H2S dépasse un certain seuil, un signal d'alarme se déclenche pour vous avertir.</p>
+            <p>Une surveillance constante de la qualité de l'air est essentielle pour maintenir un environnement sain et sécuritaire. Soyez vigilant et prenez les mesures nécessaires pour protéger votre santé.</p>
+        </div>
+    </div>
+
+    {% load static %}
+    <script>
+        function enableAudio() {
+            const gasAlarmElement = document.querySelector('.gas-alarm');
+            gasAlarmElement.play();
+        }
+
+        function updateData() {
+            fetch("{% url 'get_data' %}")
+                .then(response => response.json())
+                .then(data => {
+                    const lastUpdateElement = document.getElementById('last-update');
+                    lastUpdateElement.textContent = new Date(data.gas_detection.timestamp).toLocaleString();
+
+                    const ppmElement = document.querySelector('.ppm');
+                    ppmElement.textContent = `Niveau de CO2 : ${data.air_quality.ppm} ppm`;
+
+                    const nh3Element = document.querySelector('.nh3');
+                    nh3Element.textContent = `Niveau de NH3 : ${data.gas_detection.nh3} ppm`;
+
+                    const ch4Element = document.querySelector('.ch4');
+                    ch4Element.textContent = `Niveau de CH4 : ${data.gas_detection.ch4} ppm`;
+
+                    const h2sElement = document.querySelector('.h2s');
+                    h2sElement.textContent = `Niveau de H2S : ${data.gas_detection.h2s} ppm`;
+
+                    const gasStatusElement = document.querySelector('.gas-status');
+                    const actionMessageElement = document.querySelector('.action-message');
+                    const detectedGasesElement = document.querySelector('.detected-gases');
+                    const gasAlarmElement = document.querySelector('.gas-alarm');
+
+                    let gasDetected = false;
+                    if (data.gas_detection.gas_detected === 1 || data.gas_detection.nh3 > 10 || data.gas_detection.ch4 > 14 || data.gas_detection.h2s > 20) {
+                        gasDetected = true;
+                        gasStatusElement.textContent = "Gaz détecté !";
+                        gasStatusElement.classList.add('gas-detected');
+                        gasStatusElement.classList.remove('gas-not-detected');
+                        actionMessageElement.textContent = "Veuillez prendre les mesures nécessaires pour protéger votre santé.";
+
+                        const detectedGases = [];
+                        if (data.gas_detection.nh3 > 10) {
+                            detectedGases.push("NH3");
+                        }
+                        if (data.gas_detection.ch4 > 14) {
+                            detectedGases.push("CH4");
+                        }
+                        if (data.gas_detection.h2s > 20) {
+                            detectedGases.push("H2S");
+                        }
+                        detectedGasesElement.textContent = `Gaz détecté : ${detectedGases.join(', ')}`;
+
+                        gasAlarmElement.style.display = 'block';
+                        gasAlarmElement.play();
+                    } else {
+                        gasDetected = false;
+                        gasStatusElement.textContent = "Gaz non détecté";
+                        gasStatusElement.classList.add('gas-not-detected');
+                        gasStatusElement.classList.remove('gas-detected');
+                        actionMessageElement.textContent = "";
+                        detectedGasesElement.textContent = "";
+                        gasAlarmElement.pause();
+                        gasAlarmElement.currentTime = 0;
+                        gasAlarmElement.style.display = 'none';
+                    }
+                })
+                .catch(error => console.error('Erreur lors de la récupération des données :', error));
+        }
+
+        function updateTime() {
+            const lastUpdateElement = document.getElementById('last-update');
+            lastUpdateElement.textContent = new Date().toLocaleString();
+        }
+
+        document.addEventListener('DOMContentLoaded', (event) => {
+            // Demander une interaction utilisateur pour activer l'audio
+            document.body.addEventListener('click', enableAudio, { once: true });
+        });
+
+        setInterval(updateData, 1000);
+        setInterval(updateTime, 1000);
+    </script>
+</body>
+</html>
+
