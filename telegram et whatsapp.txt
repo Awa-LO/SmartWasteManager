@@ -8,23 +8,23 @@
 
 // WiFi credentials
 const char* ssid = "Infinix SMART 5";
-const char* password = "loawa2001";
+const char* password = "loawa555555555";
 
 // Server details
 const char* serverHost = "192.168.43.43";
 const int serverPort = 80;
 
 // Callmebot details
-String phoneNumber1 = "+221769231196";  // Replace with your phone number
-String phoneNumber2 = "+221777693114";  // Replace with the second phone number
-String apiKey1 = "1740799";             // Replace with your Callmebot API key
-String apiKey2 = "6520032";             // Replace with the second Callmebot API key
+String phoneNumber1 = "+22156677888";  // Replace with your phone number
+String phoneNumber2 = "+22167788888";  // Replace with the second phone number
+String apiKey1 = "1799";             // Replace with your Callmebot API key
+String apiKey2 = "6532";             // Replace with the second Callmebot API key
 
 // Telegram bot details
-const char* botToken1 = "6973047118:AAEW_C0TnaHuVWqv41YV3nXIOLURE-H9GkU";
+const char* botToken1 = "6973118:AAEW_C0TnaH3nXIOLURE-H9GkU";
 const char* chat_id1 = "7155874682";
-const char* botToken2 = "6986098356:AAEUjxQi7jTUceJeiUNA3iGXmhaWr-IhP4E"; // Nouveau token Telegram
-const char* chat_id2 = "5347916295"; // Nouveau chat ID Telegram
+const char* botToken2 = "6909356:AAEUjxQi7jTiGXmhaWr-IhP4E"; // Nouveau token Telegram
+const char* chat_id2 = "5346295"; // Nouveau chat ID Telegram
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 const int trigPin = D6;
