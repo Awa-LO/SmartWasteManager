@@ -6,15 +6,15 @@
 
 // Remplacez par vos informations de connexion WiFi
 const char* ssid = "Infinix SMART 5";
-const char* password = "loawa2001";
+const char* password = "loawa555555555555";
 
 // Adresse IP et port du serveur Django
 const char* serverHost = "192.168.43.43";
 const int serverPort = 80;
 
 // Détails Callmebot pour WhatsApp
-String phoneNumber = "+221778371481";
-String apiKey = "363062";
+String phoneNumber = "+221........";
+String apiKey = ".....";
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 const int trigPin = D6;
